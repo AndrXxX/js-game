@@ -1,19 +1,14 @@
 'use strict';
 
-
 class Vector {
   constructor(x, y) {
-    if (typeof(x) === 'undefined' && typeof(y) === 'undefined') {
-      x = 0;
-      y = 0;
-    }
-    this.x = x;
-    this.y = y;
+    this.x = (x === undefined) ? 0 : x;
+    this.y = (y === undefined) ? 0 : y;
   }
 
   plus(vector) {
-    if (vector instanceof Vector === false) {
-      throw(new Error(`Vector.plus | Переданный параметр ${vector} не является экземпляром класса Vector`));
+    if (!(vector instanceof Vector)) {
+      throw new Error(`Vector.plus | Переданный параметр ${vector} не является экземпляром класса Vector`);
     }
      return new Vector(this.x + vector.x, this.y + vector.y);
   }
@@ -25,25 +20,15 @@ class Vector {
 
 
 class Actor {
-  constructor(posVector, sizeVector, speedVector) {
-    let args = {
-      "pos": posVector,
-      "size": sizeVector,
-      "speed": speedVector
-    };
+  constructor(posVector = new Vector(), sizeVector = new Vector(1, 1), speedVector = new Vector()) {
 
-    for (let key in args) {
-      if (typeof(args[key]) === 'undefined') {
-        if (key === 'size') {
-          this[key] = new Vector(1, 1);
-        } else {
-          this[key] = new Vector();
-        }
-      } else if (args[key] instanceof Vector) {
-        this[key] = args[key];
-      } else {
-        throw(new Error(`Actor.constructor | Переданный параметр ${args[key]} не является экземпляром класса Actor`));
-      }
+    if (posVector instanceof Vector && sizeVector instanceof Vector && speedVector instanceof Vector) {
+      this.pos = posVector;
+      this.size = sizeVector;
+      this.speed = speedVector;
+    } else {
+      throw new Error(`Actor.constructor | Один или несколько из переданных параметров 
+        ${[posVector, sizeVector, speedVector]} не является экземпляром класса Actor`);
     }
   }
 
@@ -72,8 +57,8 @@ class Actor {
   }
 
   isIntersect(actor) {
-    if (actor instanceof Actor === false) {
-      throw(new Error(`Actor.isIntersect | Переданный параметр ${actor} не является экземпляром класса Actor`));
+    if (!(actor instanceof Actor)) {
+      throw new Error(`Actor.isIntersect | Переданный параметр ${actor} не является экземпляром класса Actor`);
     } else if (actor === this) {
       return false; // Объект не пересекается сам с собой 
     } else {
@@ -95,14 +80,15 @@ class Level {
       }, 0);
     } else {
       [this.height, this.width] = [0, 0];
+      this.grid = [];
     }
 
     this.status = null;
     this.finishDelay = 1;
 
-    if (!actors) actors = [];
+    if (!Array.isArray(actors)) actors = [];
     this.actors = actors;
-    this.player = actors.find((el) => el.type === 'player');
+    this.player = actors.find(el => el.type === 'player');
   }
 
   isFinished() {
@@ -110,20 +96,16 @@ class Level {
   }
 
   actorAt(actor) {
-    if (actor instanceof Actor === false) {
-      throw(new Error(`Level.actorAt | Переданный параметр ${actor} не является экземпляром класса Actor`));
-    } else if (typeof(this.actors) === 'undefined') {
-      return undefined;
-    } else if (this.actors.length === 1) {
-      return undefined;
+    if (!(actor instanceof Actor)) {
+      throw new Error(`Level.actorAt | Переданный параметр ${actor} не является экземпляром класса Actor`);
     }
 
-    return this.actors.find((el) => el.isIntersect(actor));
+    return this.actors.find(el => el.isIntersect(actor));
   }
 
   obstacleAt(position, size) {
-    if (position instanceof Vector === false || size instanceof Vector === false) {
-      throw(new Error(`Level.obstacleAt | Аргументы ${position}, ${size} должны быть экземплярами класса Vector`));
+    if (!(position instanceof Vector && size instanceof Vector)) {
+      throw new Error(`Level.obstacleAt | Аргументы ${position}, ${size} должны быть экземплярами класса Vector`);
     }
 
     let actor = new Actor(position, size);
@@ -138,30 +120,26 @@ class Level {
         }
       }
     }
-
-    return undefined;
   }
 
   removeActor(actor) {
-    let indexOfActor = this.actors.findIndex((el) => el === actor);
+    let indexOfActor = this.actors.findIndex(el => el === actor);
     if (indexOfActor !== -1) {
       this.actors.splice(indexOfActor, 1);
     }
   }
 
   noMoreActors(type) {
-    return (this.actors.length === 0) || (this.actors.findIndex((el) => el.type === type) === -1);
+    return (this.actors.length === 0) || (this.actors.findIndex(el => el.type === type) === -1);
   }
 
   playerTouched(actorType, actor) {
     if (actorType === 'lava' || actorType === 'fireball') {
       this.status = 'lost';
-    } else if (actorType === 'coin' && typeof actor !== 'undefined') {
-      let indexOfActor = this.actors.findIndex((el) => el.type === 'coin');
-      if (indexOfActor !== -1) {
-        this.actors.splice(indexOfActor, 1);
-      }
-      if (this.actors.findIndex((el) => el.type === 'coin') === -1) {
+    } else if (actorType === 'coin' && actor !== undefined) {
+      this.removeActor(actor);
+
+      if (this.noMoreActors('coin')) {
         this.status = 'won';
       }
     }
@@ -179,70 +157,47 @@ class LevelParser {
   }
 
   actorFromSymbol(symbol) {
-    if (typeof symbol === 'undefined') {
-      return undefined;
-    } else {
+    if (symbol !== undefined) {
       return this.dictionary[symbol];
     }
   }
 
   obstacleFromSymbol(symbol) {
-    if (typeof symbol === 'undefined') {
-      return undefined;
-    } else {
+    if (symbol !== undefined) {
       return this.objDictionary[symbol];
     }
   }
 
   createGrid(grid) {
-    let newGrid = [];
+    grid = [].concat(grid).filter(Boolean);
 
-    if (Array.isArray(grid)) {
-      for (let row of grid) {
-        let newRow = [];
-
-        for (let cell of row.split('')) {
-          newRow.push(this.objDictionary[cell]);
-        }
-
-        newGrid.push(newRow);
-      }
-
-      return newGrid;
-
-    } else {
-      return [];
-    }
+    return grid.map(row => {
+      return row.split('').map(cell => {
+        return this.objDictionary[cell];
+      });
+    });
   }
 
   createActors(plan) {
     let actors = [];
+    plan = [].concat(plan).filter(Boolean);
 
-    if (Array.isArray(plan) && plan.length > 0 && typeof this.dictionary !== 'undefined') {
+    if (plan.length > 0 && this.dictionary !== undefined) {
 
-      let curRowNum = 0;
-      for (let row of plan) {
-
-        let curCellNum = 0;
-        for (let cell of row.split('')) {
+      plan.reduce((rowMemo, row, rowIndex) => {
+        row.split('').reduce((cellMemo, cell, cellIndex) => {
 
           if (this.dictionary[cell] === Actor ||
-            typeof this.dictionary[cell] !== 'undefined' && this.dictionary[cell].prototype instanceof Actor) {
-            actors.push(new this.dictionary[cell](new Vector(curCellNum, curRowNum)));
+            this.dictionary[cell] !== undefined && this.dictionary[cell].prototype instanceof Actor) {
+              actors.push(new this.dictionary[cell](new Vector(cellIndex, rowIndex)));
           }
 
-          curCellNum++;
-        }
+        }, []);
+      }, []);
 
-        curRowNum++;
-      }
-
-      return actors;
-
-    } else {
-      return [];
     }
 
+    return actors;
   }
 
   parse(plan) {
@@ -309,7 +264,6 @@ class FireRain extends Fireball {
       this.pos.x = this.startPos.x;
       this.pos.y = this.startPos.y;
     }
-
   }
 }
 
@@ -367,7 +321,7 @@ const schemas = [
     "                       ",
     "  |xxx       w         ",
     "  o                 o  ",
-    "  x               = x  ",
+    "                  = x  ",
     "  x          o o    x  ",
     "  x  @    *  xxxxx  x  ",
     "  xxxxx             x  ",
